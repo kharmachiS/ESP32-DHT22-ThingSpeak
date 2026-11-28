@@ -399,8 +399,8 @@ function updateData() {
             const feed = data.feeds && data.feeds[0];
             if (!feed) return;
 
-            const hum  = parseFloat(feed.field1); // field1 = humidite
-            const temp = parseFloat(feed.field2); // field2 = temperature
+            const hum  = parseFloat(feed.field2); // field2 = humidite
+            const temp = parseFloat(feed.field1); // field1 = temperature
             const led  = feed.field3;              // field3 = commande LED
 
             if (!isNaN(temp)) {
