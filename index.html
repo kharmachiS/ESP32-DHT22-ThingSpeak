@@ -1,450 +1,504 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard IoT ThingSpeak</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-body {
-    font-family: 'Segoe UI', Arial, sans-serif;
-    background: #f0f4f7;
-    padding: 24px;
-    color: #333;
-}
+    <title>Tableau de bord IoT — ESP8266 et DHT11</title>
 
-h1 {
-    color: #1d4ed8;
-    text-align: center;
-    margin-bottom: 24px;
-    font-size: 1.6em;
-}
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
-.metrics-row {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin-bottom: 24px;
-}
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --inner-bg: #0f172a;
+            --border: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --temp-color: #f97316;
+            --hum-color: #06b6d4;
+            --green: #16a34a;
+            --red: #dc2626;
+            --yellow: #facc15;
+        }
 
-.metric-card {
-    background: white;
-    border-radius: 14px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    padding: 18px 24px;
-    min-width: 160px;
-    text-align: center;
-}
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
 
-.metric-card .label {
-    font-size: 0.8em;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 6px;
-}
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
 
-.metric-card .value {
-    font-size: 2em;
-    font-weight: 700;
-    color: #1d4ed8;
-}
+        .container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 28px;
+            width: 100%;
+            max-width: 760px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
 
-.metric-card .unit {
-    font-size: 0.9em;
-    color: #888;
-    margin-left: 3px;
-}
+        /* En-tête */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 18px;
+            margin-bottom: 26px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
 
-.metric-card .field-tag {
-    font-size: 0.72em;
-    color: #aaa;
-    margin-top: 4px;
-}
+        .header h1 {
+            font-size: 21px;
+            font-weight: 700;
+        }
 
-.control-panel {
-    background: white;
-    padding: 20px 24px;
-    border-radius: 14px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    max-width: 420px;
-    margin: 0 auto 24px;
-    text-align: center;
-}
+        .header p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 3px;
+        }
 
-.control-panel h3 {
-    font-size: 1em;
-    color: #555;
-    margin-bottom: 14px;
-}
+        .badge {
+            padding: 7px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            background-color: var(--red);
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.3s;
+        }
 
-.btn-row {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    margin-bottom: 12px;
-}
+        .badge.online {
+            background-color: var(--green);
+        }
 
-button {
-    font-size: 15px;
-    padding: 10px 22px;
-    cursor: pointer;
-    border-radius: 10px;
-    border: none;
-    color: white;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: 0.15s;
-}
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: white;
+        }
 
-.btn-on  { background: #22c55e; }
-.btn-off { background: #ef4444; }
-button:hover   { opacity: 0.88; }
-button:active  { transform: scale(0.96); }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
+        /* Grille des jauges */
+        .gauges-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 22px;
+            margin-bottom: 24px;
+        }
 
-.led-status-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 8px;
-}
+        .gauge-card {
+            background-color: var(--inner-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
 
-.led-dot {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #ddd;
-    border: 1px solid #ccc;
-    transition: background 0.4s;
-}
+        .gauge-title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1.1px;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+            font-weight: 600;
+        }
 
-.led-dot.on  { background: #22c55e; box-shadow: 0 0 8px #22c55e99; }
-.led-dot.off { background: #ef4444; box-shadow: 0 0 8px #ef444499; }
+        /* Jauge semi-circulaire SVG */
+        .semi-gauge {
+            position: relative;
+            width: 210px;
+            height: 125px;
+            display: flex;
+            justify-content: center;
+        }
 
-.status-text {
-    font-size: 0.85em;
-    color: #666;
-}
+        .semi-gauge svg {
+            width: 210px;
+            height: 125px;
+            overflow: visible;
+        }
 
-.gauge-container {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 20px;
-    margin-bottom: 20px;
-}
+        .semi-gauge path {
+            fill: none;
+            stroke-width: 16;
+            stroke-linecap: round;
+        }
 
-.gauge-card {
-    background: white;
-    padding: 20px;
-    border-radius: 14px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-    width: 260px;
-    text-align: center;
-}
+        .track-arc {
+            stroke: #1e293b;
+        }
 
-.gauge-card .gauge-label {
-    font-weight: 600;
-    font-size: 1.05em;
-    margin-top: 8px;
-    color: #333;
-}
+        .fill-arc {
+            stroke-dasharray: 251.3;
+            stroke-dashoffset: 251.3;
+            transition: stroke-dashoffset 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
 
-.gauge-card .gauge-sub {
-    font-size: 0.75em;
-    color: #aaa;
-    margin-top: 2px;
-}
+        #tempArc {
+            stroke: var(--temp-color);
+        }
 
-canvas { display: block; margin: 0 auto; }
+        #humArc {
+            stroke: var(--hum-color);
+        }
 
-.footer {
-    text-align: center;
-    font-size: 0.8em;
-    color: #aaa;
-    margin-top: 10px;
-}
-</style>
+        .gauge-readout {
+            position: absolute;
+            bottom: 6px;
+            text-align: center;
+        }
+
+        .gauge-readout .val {
+            font-size: 30px;
+            font-weight: 700;
+            display: block;
+        }
+
+        .gauge-readout .range {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Panneau LED */
+        .led-card {
+            background-color: var(--inner-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .led-status {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .bulb {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: #334155;
+            border: 2px solid #475569;
+            transition: 0.2s ease;
+        }
+
+        .bulb.active {
+            background-color: var(--yellow);
+            border-color: #fef08a;
+            box-shadow: 0 0 22px var(--yellow);
+        }
+
+        .led-text h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .led-text span {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        button {
+            padding: 11px 22px;
+            border: none;
+            border-radius: 9px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            color: white;
+            transition: transform 0.08s, filter 0.15s;
+        }
+
+        button:hover {
+            filter: brightness(1.1);
+        }
+
+        button:active {
+            transform: scale(0.96);
+        }
+
+        .btn-on {
+            background-color: var(--green);
+        }
+
+        .btn-off {
+            background-color: var(--red);
+        }
+
+        /* Barre d'information MQTT */
+        .footer-log {
+            margin-top: 18px;
+            background-color: var(--inner-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12.5px;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+    </style>
 </head>
+
 <body>
 
-<h1>&#127968; Tableau de Bord IoT – ESP32 + ThingSpeak</h1>
+    <div class="container">
 
-<div class="metrics-row">
-    <div class="metric-card">
-        <div class="label">&#127777; Humidité</div>
-        <div><span class="value" id="tempVal">--</span><span class="unit">°C</span></div>
-        <div class="field-tag">ESP32 → field2</div>
+        <!-- En-tête -->
+        <div class="header">
+            <div>
+                <h1>Tableau de Bord IoT — ESP8266</h1>
+                <p>
+                    Courtier : <strong>broker.hivemq.com</strong> |
+                    Capteur DHT11 (Pin D0) et LED (Pin D1)
+                </p>
+            </div>
+
+            <div id="connBadge" class="badge">
+                <span class="dot"></span>
+                <span id="connText">Déconnecté</span>
+            </div>
+        </div>
+
+        <!-- Jauges Température et Humidité -->
+        <div class="gauges-grid">
+
+            <!-- Température -->
+            <div class="gauge-card">
+                <div class="gauge-title">Température</div>
+
+                <div class="semi-gauge">
+                    <svg viewBox="0 0 210 125">
+                        <path class="track-arc"
+                              d="M 25 105 A 80 80 0 0 1 185 105" />
+
+                        <path id="tempArc"
+                              class="fill-arc"
+                              d="M 25 105 A 80 80 0 0 1 185 105" />
+                    </svg>
+
+                    <div class="gauge-readout">
+                        <span class="val" id="tempVal">--.- °C</span>
+                        <span class="range">Plage : 0 °C à +50 °C</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Humidité -->
+            <div class="gauge-card">
+                <div class="gauge-title">Humidité relative</div>
+
+                <div class="semi-gauge">
+                    <svg viewBox="0 0 210 125">
+                        <path class="track-arc"
+                              d="M 25 105 A 80 80 0 0 1 185 105" />
+
+                        <path id="humArc"
+                              class="fill-arc"
+                              d="M 25 105 A 80 80 0 0 1 185 105" />
+                    </svg>
+
+                    <div class="gauge-readout">
+                        <span class="val" id="humVal">--.- %</span>
+                        <span class="range">Plage : 0 % à 100 %</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Contrôle LED -->
+        <div class="led-card">
+
+            <div class="led-status">
+                <div id="ledBulb" class="bulb"></div>
+
+                <div class="led-text">
+                    <h3>LED Actionneur (Pin D1)</h3>
+                    <span id="ledLabel">État actuel : ÉTEINTE (0)</span>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-on" onclick="setLed('1')">
+                    Allumer (1)
+                </button>
+
+                <button class="btn-off" onclick="setLed('0')">
+                    Éteindre (0)
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Dernier message brut reçu -->
+        <div class="footer-log">
+            <span id="lastMsg">
+                En attente de publication sur monprojet/esp8266/capteurs...
+            </span>
+
+            <span id="lastTime">--:--:--</span>
+        </div>
+
     </div>
-    <div class="metric-card">
-        <div class="label">&#128166; Température</div>
-        <div><span class="value" id="humVal">--</span><span class="unit">%</span></div>
-        <div class="field-tag">ESP32 → field1</div>
-    </div>
-</div>
 
-<div class="control-panel">
-    <h3>Contrôle LED – GPIO 23</h3>
-    <div class="btn-row">
-        <button class="btn-on"  id="btnOn"  onclick="setLED(1)">&#128161; ALLUMER</button>
-        <button class="btn-off" id="btnOff" onclick="setLED(0)">&#11835; ÉTEINDRE</button>
-    </div>
-    <div class="led-status-row">
-        <div class="led-dot" id="ledDot"></div>
-        <span class="status-text">
-            État LED (field3) : <strong id="ledState">--</strong>
-        </span>
-    </div>
-</div>
+    <script>
+        // ==========================================
+        // PARAMÈTRES HIVEMQ MQTT
+        // ==========================================
 
-<div class="gauge-container">
-    <div class="gauge-card">
-        <canvas id="tempGauge" width="220" height="180"></canvas>
-        <div class="gauge-label">Température : <span id="tempValG">--</span> °C</div>
-        <div class="gauge-sub">field2 (envoyé par ESP32)</div>
-    </div>
-    <div class="gauge-card">
-        <canvas id="humGauge" width="220" height="180"></canvas>
-        <div class="gauge-label">Humidité : <span id="humValG">--</span> %</div>
-        <div class="gauge-sub">field1 (envoyé par ESP32)</div>
-    </div>
-</div>
+        const BROKER_WS = "wss://broker.hivemq.com:8884/mqtt";
 
-<div class="footer">
-    Rafraîchissement automatique toutes les 15 s &nbsp;|&nbsp;
-    Dernière mise à jour : <span id="lastUpdate">--</span>
-</div>
+        const TOPIC_CAPTEURS = "skprojet/esp8266/capteurs";
+        const TOPIC_LED = "skprojet/esp8266/led";
 
-<script>
-const CHANNEL_ID    = "3591335";
-const READ_API_KEY  = "U2FPOH759092Q5L5";
-const WRITE_API_KEY = "RM901ZNFORW0X0T5";
+        const ARC_LENGTH = 251.3;
 
-// field1 = Humidité    (ESP32 → ThingSpeak)
-// field2 = Température (ESP32 → ThingSpeak)
-// field3 = Commande LED (Dashboard → ThingSpeak → ESP32)
+        // Connexion au broker MQTT
+        const client = mqtt.connect(BROKER_WS);
 
-const tempCtx = document.getElementById("tempGauge").getContext("2d");
-const humCtx  = document.getElementById("humGauge").getContext("2d");
+        client.on("connect", () => {
+            const badge = document.getElementById("connBadge");
 
-let ledPending = null;
-let retryTimer = null;
-let retryCount = 0;
+            badge.classList.add("online");
 
-// ===== JAUGE =====
-function drawGauge(ctx, value, min, max, color) {
-    const x = 110, y = 130, radius = 80;
-    ctx.clearRect(0, 0, 220, 180);
+            document.getElementById("connText").textContent =
+                "Connecté (HiveMQ)";
 
-    ctx.beginPath();
-    ctx.arc(x, y, radius, Math.PI, 2 * Math.PI);
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = "#e5e7eb";
-    ctx.lineCap = "round";
-    ctx.stroke();
+            client.subscribe(TOPIC_CAPTEURS);
+            client.subscribe(TOPIC_LED);
+        });
 
-    let pct = (value - min) / (max - min);
-    pct = Math.min(Math.max(isNaN(pct) ? 0 : pct, 0), 1);
+        // Gestion de la déconnexion
+        client.on("close", () => {
+            const badge = document.getElementById("connBadge");
 
-    if (pct > 0) {
-        ctx.beginPath();
-        ctx.arc(x, y, radius, Math.PI, Math.PI + pct * Math.PI);
-        ctx.lineWidth = 14;
-        ctx.strokeStyle = color;
-        ctx.lineCap = "round";
-        ctx.stroke();
-    }
+            badge.classList.remove("online");
 
-    const needleAngle = Math.PI + pct * Math.PI;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(
-        x + (radius - 12) * Math.cos(needleAngle),
-        y + (radius - 12) * Math.sin(needleAngle)
-    );
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = "#333";
-    ctx.lineCap = "round";
-    ctx.stroke();
+            document.getElementById("connText").textContent =
+                "Déconnecté";
+        });
 
-    ctx.beginPath();
-    ctx.arc(x, y, 6, 0, 2 * Math.PI);
-    ctx.fillStyle = "#333";
-    ctx.fill();
+        // Réception des messages MQTT
+        client.on("message", (topic, payload) => {
 
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#bbb";
-    ctx.fillStyle = "#666";
-    ctx.font = "10px Arial";
-    ctx.textAlign = "center";
-    for (let i = 0; i <= 6; i++) {
-        const angle = Math.PI + (i / 6) * Math.PI;
-        ctx.beginPath();
-        ctx.moveTo(x + (radius - 8) * Math.cos(angle), y + (radius - 8) * Math.sin(angle));
-        ctx.lineTo(x + (radius + 2) * Math.cos(angle), y + (radius + 2) * Math.sin(angle));
-        ctx.stroke();
-        const valGrad = Math.round(min + (i / 6) * (max - min));
-        ctx.fillText(
-            valGrad,
-            x + (radius + 18) * Math.cos(angle),
-            y + (radius + 18) * Math.sin(angle) + 4
-        );
-    }
-}
+            const msg = payload.toString().trim();
 
-// ===== UI LED =====
-function updateLEDUI(state) {
-    const s     = String(state).trim();
-    const dot   = document.getElementById("ledDot");
-    const label = document.getElementById("ledState");
-    if (s === "1") {
-        dot.className     = "led-dot on";
-        label.textContent = "1 — Allumee";
-        label.style.color = "#16a34a";
-    } else if (s === "0") {
-        dot.className     = "led-dot off";
-        label.textContent = "0 — Eteinte";
-        label.style.color = "#dc2626";
-    } else {
-        dot.className     = "led-dot";
-        label.textContent = "--";
-        label.style.color = "#888";
-    }
-}
+            // 1. Traitement des données du capteur
+            // Format : "Temp: 25.0C | Hum: 60.0%"
 
-function setBtns(disabled) {
-    document.getElementById("btnOn").disabled  = disabled;
-    document.getElementById("btnOff").disabled = disabled;
-}
+            if (topic === TOPIC_CAPTEURS) {
 
-// ===== RETRY LED =====
-function tryWriteLED() {
-    if (ledPending === null) return;
+                document.getElementById("lastMsg").textContent =
+                    `Payload reçu : "${msg}"`;
 
-    const state = ledPending;
-    retryCount++;
+                document.getElementById("lastTime").textContent =
+                    new Date().toLocaleTimeString("fr-FR");
 
-    document.getElementById("ledState").textContent =
-        "Envoi en cours... (essai " + retryCount + ")";
-    document.getElementById("ledState").style.color = "#d97706";
-    document.getElementById("ledDot").className = "led-dot";
+                const regex =
+                    /Temp:\s*([\d.-]+)C\s*\|\s*Hum:\s*([\d.-]+)%/;
 
-    const url = "https://api.thingspeak.com/update?api_key="
-                + WRITE_API_KEY + "&field3=" + state;
+                const match = msg.match(regex);
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("GET", url, true);
+                if (match) {
+                    const temp = parseFloat(match[1]);
+                    const hum = parseFloat(match[2]);
 
-    xhr.onload = function () {
-        const resp = xhr.responseText.trim();
-        console.log("ThingSpeak field3 reponse:", resp);
+                    updateGauge("temp", temp, 0, 50, " °C");
+                    updateGauge("hum", hum, 0, 100, " %");
+                }
+            }
 
-        if (xhr.status === 200 && resp !== "0" && resp !== "") {
-            // Succes
-            ledPending = null;
-            retryCount = 0;
-            if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
-            updateLEDUI(state);
-            setBtns(false);
-        } else {
-            // Refus ThingSpeak (creneau occupe par ESP32) → retry 16s
-            document.getElementById("ledState").textContent =
-                "Creneau occupe, nouvel essai dans 16s... (essai " + retryCount + ")";
-            document.getElementById("ledState").style.color = "#d97706";
-            if (!retryTimer) {
-                retryTimer = setInterval(tryWriteLED, 16000);
+            // 2. Mise à jour de l'état de la LED
+            if (topic === TOPIC_LED) {
+                updateLedDisplay(msg);
+            }
+        });
+
+        // Mise à jour des jauges
+        function updateGauge(type, value, min, max, unit) {
+
+            const valEl = document.getElementById(
+                type === "temp" ? "tempVal" : "humVal"
+            );
+
+            const arcEl = document.getElementById(
+                type === "temp" ? "tempArc" : "humArc"
+            );
+
+            valEl.textContent = value.toFixed(1) + unit;
+
+            const clamped = Math.max(min, Math.min(max, value));
+
+            const percent = (clamped - min) / (max - min);
+
+            const offset = ARC_LENGTH - (percent * ARC_LENGTH);
+
+            arcEl.style.strokeDashoffset = offset;
+        }
+
+        // Mise à jour visuelle de la LED
+        function updateLedDisplay(state) {
+
+            const bulb = document.getElementById("ledBulb");
+            const label = document.getElementById("ledLabel");
+
+            if (state === "1") {
+
+                bulb.classList.add("active");
+
+                label.textContent = "État actuel : ALLUMÉE (1)";
+                label.style.color = "#facc15";
+
+            } else if (state === "0") {
+
+                bulb.classList.remove("active");
+
+                label.textContent = "État actuel : ÉTEINTE (0)";
+                label.style.color = "#94a3b8";
             }
         }
-    };
 
-    xhr.onerror = function () {
-        document.getElementById("ledState").textContent =
-            "Erreur reseau, retry dans 16s...";
-        document.getElementById("ledState").style.color = "#dc2626";
-        if (!retryTimer) {
-            retryTimer = setInterval(tryWriteLED, 16000);
+        // Envoi de la commande LED
+        function setLed(cmd) {
+            client.publish(TOPIC_LED, cmd, { retain: true });
         }
-    };
-
-    xhr.send();
-}
-
-// ===== COMMANDE LED =====
-function setLED(state) {
-    if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
-    retryCount = 0;
-    ledPending = state;
-    setBtns(true);
-    tryWriteLED();
-}
-
-// ===== LECTURE DONNÉES =====
-function updateData() {
-    const url = "https://api.thingspeak.com/channels/" + CHANNEL_ID
-              + "/feeds.json?api_key=" + READ_API_KEY + "&results=1";
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("GET", url, true);
-
-    xhr.onload = function () {
-        if (xhr.status !== 200) return;
-        try {
-            const data = JSON.parse(xhr.responseText);
-            const feed = data.feeds && data.feeds[0];
-            if (!feed) return;
-
-            const hum  = parseFloat(feed.field2); // field2 = humidite
-            const temp = parseFloat(feed.field1); // field1 = temperature
-            const led  = feed.field3;              // field3 = commande LED
-
-            if (!isNaN(temp)) {
-                const t = temp.toFixed(1);
-                document.getElementById("tempVal").textContent  = t;
-                document.getElementById("tempValG").textContent = t;
-                drawGauge(tempCtx, temp, -40, 100, "#ef4444");
-            }
-
-            if (!isNaN(hum)) {
-                const h = hum.toFixed(1);
-                document.getElementById("humVal").textContent  = h;
-                document.getElementById("humValG").textContent = h;
-                drawGauge(humCtx, hum, 0, 100, "#22c55e");
-            }
-
-            // Sync LED seulement si aucune commande en attente
-            if (ledPending === null &&
-                led !== null && led !== undefined &&
-                String(led).trim() !== "") {
-                updateLEDUI(led);
-            }
-
-            document.getElementById("lastUpdate").textContent =
-                new Date().toLocaleTimeString("fr-FR");
-
-        } catch (e) {
-            console.error("Erreur parsing JSON:", e);
-        }
-    };
-
-    xhr.onerror = function () {
-        console.error("Erreur reseau lecture ThingSpeak");
-    };
-
-    xhr.send();
-}
-
-// ===== INIT =====
-drawGauge(tempCtx, 0, -40, 100, "#ef4444");
-drawGauge(humCtx,  0,   0, 100, "#22c55e");
-updateData();
-setInterval(updateData, 15000);
-</script>
+    </script>
 
 </body>
 </html>
